@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 import httpx
 from typing import Any, List, Optional, Dict
@@ -22,7 +23,7 @@ class OpenpluginResponse(BaseModel):
 
 class LLM(BaseModel):
     provider: str = Field(description="LLM provider", default="OpenAI")
-    model_name: str = Field(
+    model: str = Field(
         description="LLM model name", alias="model_name",default="gpt-3.5-turbo-0613"
     )
     frequency_penalty: float = Field(description="LLM frequency penalty", default=0)
@@ -74,6 +75,19 @@ class OpenpluginService(BaseModel):
         if self.client:
             self.client.close()
 
+    def ping(self)-> str:
+        result = self.client.get("/api/info")
+        if result.status_code == 200:
+            return "success"
+        return "failed"
+    
+    def remote_server_version(self)-> str:
+        result = self.client.get("/api/info")
+        if result.status_code == 200:
+            return result.json().get("version")
+        return "failed"
+        
+    
     def run(
         self,
         openplugin_manifest_url: str,
@@ -89,11 +103,14 @@ class OpenpluginService(BaseModel):
                 "conversation": conversation,
                 "openplugin_manifest_url": openplugin_manifest_url,
                 "header": header.dict(),
-                "approach": approach.dict(),
+                "approach": approach.dict(by_alias=True),
                 "output_module_names": output_module_names,
             }
         )
-        result = self.client.post(PLUGIN_EXECUTION_API_PATH, data=payload)
+        result = self.client.post(PLUGIN_EXECUTION_API_PATH, data=payload, timeout=30)
+        if result.status_code != 200:
+            raise Exception(f"Failed to run openplugin service. Status code: {result.status_code}, Reason: {result.text}")
+
         response_json = result.json()
         openplugin_response = OpenpluginResponse(
             default_output_module=response_json.get("response").get(
