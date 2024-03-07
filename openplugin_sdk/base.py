@@ -60,15 +60,15 @@ PLUGIN_EXECUTION_API_PATH = "/api/plugin-execution-pipeline"
 
 
 class OpenpluginService(BaseModel):
-    remote_server_endpoint: str = Field(..., description="Field 1")
-    api_key: SecretStr = Field(..., description="Field 2", exclude=True)
+    openplugin_server_endpoint: str = Field(..., description="Field 1")
+    openplugin_api_key: SecretStr = Field(..., description="Field 2", exclude=True)
     client: Any = None  # httpx.Client
 
     def __init__(self, **data):
         super().__init__(**data)
         self.client = httpx.Client(
-            base_url=self.remote_server_endpoint,
-            headers={"x-api-key": self.api_key.get_secret_value(), "Content-Type": "application/json"},
+            base_url=self.openplugin_server_endpoint,
+            headers={"x-api-key": self.openplugin_api_key.get_secret_value(), "Content-Type": "application/json"},
         )
 
     def __del__(self):
