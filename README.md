@@ -38,7 +38,7 @@ response = svc.run(
         output_module_names=[output_module_name],
 )
 print(f"Response={response.value}")
-
+```
 
 ## Starting openplugin service locally
 
