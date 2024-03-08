@@ -1,8 +1,9 @@
-from .base import OpenpluginService, Header, Approach, get_output_module_names
+from .base import OpenpluginService, AuthHeader, UserAuthHeader, Approach, get_output_module_names
 
 
 __all__ = (
     "OpenpluginService",
-    "Header",
+    "AuthHeader",
+    "UserAuthHeader",
     "Approach"
 )
