@@ -12,25 +12,38 @@ class Response(BaseModel):
     value: Any
 
 
+class Config(BaseModel):
+    """
+    Represents the API configuration for a plugin.
+    """
+
+    openai_api_key: Optional[str] = None
+    cohere_api_key: Optional[str] = None
+    google_palm_key: Optional[str] = None
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    aws_region_name: Optional[str] = None
+    azure_api_key: Optional[str] = None
+
+
+
 class AuthHeader(BaseModel):
-    name: str = Field(description="name", default=str(uuid.uuid4()), exclude=True)    
+    name: str = Field(description="name", default=str(uuid.uuid4()), exclude=True)
 
     @staticmethod
     def build_default_header():
         return AuthHeader()
-    
-    def get_auth_json(self, auth_obj:dict):
-        is_query_param=False
-        auth_dict=self.dict()
-        if auth_obj.get("authorization_type")=="query_param":
-            is_query_param=True
-            query_param_key=auth_obj.get("query_param_key")
+
+    def get_auth_json(self, auth_obj: dict):
+        is_query_param = False
+        auth_dict = self.dict()
+        if auth_obj.get("authorization_type") == "query_param":
+            is_query_param = True
+            query_param_key = auth_obj.get("query_param_key")
             if query_param_key and "user_http_token" in auth_dict:
-                auth_dict[query_param_key]=auth_dict.get("user_http_token")
+                auth_dict[query_param_key] = auth_dict.get("user_http_token")
                 auth_dict.pop("user_http_token")
         return auth_dict, is_query_param
-
-    
 
 
 class UserAuthHeader(AuthHeader):
@@ -115,24 +128,27 @@ class OpenpluginService(BaseModel):
         conversation: List[str] = [],
         header: AuthHeader = AuthHeader.build_default_header(),
         approach: Approach = Approach.build_default_approach(),
+        config: Config = Config(),
         output_module_names: List[str] = [],
     ) -> Response:
-        
-        openplugin_manifest_json=httpx.get(openplugin_manifest_url).json()
-        auth_dict, is_query_param=header.get_auth_json(openplugin_manifest_json.get("auth"))
+        openplugin_manifest_json = httpx.get(openplugin_manifest_url).json()
+        auth_dict, is_query_param = header.get_auth_json(
+            openplugin_manifest_json.get("auth")
+        )
         if is_query_param:
-            header_dict={}
-            query_param_dict=auth_dict
+            header_dict = {}
+            query_param_dict = auth_dict
         else:
-            header_dict=auth_dict
-            query_param_dict={}
+            header_dict = auth_dict
+            query_param_dict = {}
         payload = json.dumps(
             {
                 "prompt": prompt,
                 "conversation": conversation,
                 "openplugin_manifest_url": openplugin_manifest_url,
                 "header": header_dict,
-                "auth_query_param":query_param_dict,
+                "config": config.dict(exclude_none=True),
+                "auth_query_param": query_param_dict,
                 "approach": approach.dict(by_alias=True),
                 "output_module_names": output_module_names,
             }
