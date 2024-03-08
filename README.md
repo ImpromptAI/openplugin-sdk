@@ -63,4 +63,6 @@ Note: Learn more about openplugin at: https://openplugin.org/
 Several samples to run an openplugin can be found in the examples folder
 
 - [Simple Demo](examples/simple_demo.ipynb)
+- [User Auth Demo](examples/advanced_demo.ipynb)
+- [Advance Demo](examples/user_auth_demo.ipynb)
 
