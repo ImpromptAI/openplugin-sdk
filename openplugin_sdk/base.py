@@ -26,7 +26,6 @@ class Config(BaseModel):
     azure_api_key: Optional[str] = None
 
 
-
 class AuthHeader(BaseModel):
     name: str = Field(description="name", default=str(uuid.uuid4()), exclude=True)
 
@@ -88,6 +87,7 @@ class Approach(BaseModel):
 
 
 PLUGIN_EXECUTION_API_PATH = "/api/plugin-execution-pipeline"
+PLUGIN_SELECTOR_API_PATH = "/api/plugin-selector"
 
 
 class OpenpluginService(BaseModel):
@@ -171,6 +171,34 @@ class OpenpluginService(BaseModel):
         if len(output_module_names) == 1:
             return openplugin_response.output_module_map.get(output_module_names[0])
         return openplugin_response.get_default_output_module_response()
+
+    def select_a_plugin(
+        self,
+        openplugin_manifest_urls: List[str],
+        prompt: str,
+        conversation: List[str] = [],
+        pipeline_name: str = "oai functions",
+        config: Config = Config(),
+        llm: LLM = LLM.build_default_llm(),
+    ) -> str:
+        llm_dict = llm.dict(exclude_none=True)
+        llm_dict["model_name"]=llm_dict.pop("model")
+        payload = json.dumps(
+            {
+                "messages": [{"content": prompt, "message_type": "HumanMessage"}],
+                "pipeline_name": pipeline_name,
+                "openplugin_manifest_urls": openplugin_manifest_urls,
+                "config": config.dict(exclude_none=True),
+                "llm": llm_dict,
+            }
+        )
+        result = self.client.post(PLUGIN_SELECTOR_API_PATH, data=payload, timeout=30)
+        if result.status_code != 200:
+            raise Exception(
+                f"Failed to run openplugin service. Status code: {result.status_code}, Reason: {result.text}"
+            )
+        response_json = result.json()
+        return response_json.get("detected_plugin")
 
     class Config:
         arbitrary_types_allowed = False
