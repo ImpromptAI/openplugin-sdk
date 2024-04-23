@@ -257,8 +257,8 @@ class OpenpluginService(BaseModel):
         Returns a string representing the detected plugin from a POST request to the PLUGIN_SELECTOR_API_PATH endpoint.
     """
      
-    openplugin_server_endpoint: str = Field(..., description="Field 1")
-    openplugin_api_key: SecretStr = Field(..., description="Field 2", exclude=True)
+    openplugin_server_endpoint: str = Field("http://localhost:8003", description="openplugin_server_endpoint")
+    openplugin_api_key: SecretStr = Field(..., description="openplugin_api_key", exclude=True)
     client: Any = None  # httpx.Client
 
     def __init__(self, **data):
@@ -266,8 +266,7 @@ class OpenpluginService(BaseModel):
         self.client = httpx.Client(
             base_url=self.openplugin_server_endpoint,
             headers={
-                "x-api-key": self.openplugin_api_key.get_secret_value(),
-                "Content-Type": "application/json",
+                "x-api-key": self.openplugin_api_key.get_secret_value()
             },
         )
 
@@ -305,13 +304,15 @@ class OpenpluginService(BaseModel):
 
     def run(
         self,
-        openplugin_manifest_url: str,
-        prompt: str,
+        input: Optional[str]=None,
+        local_file_path: Optional[str]=None,
+        openplugin_manifest_url: Optional[str]=None,
+        openplugin_manifest_json: Optional[dict]=None,
         conversation: List[str] = [],
         header: AuthHeader = AuthHeader.build_default_header(),
         approach: Approach = Approach.build_default_approach(),
         config: Config = Config(),
-        output_module_names: List[str] = [],
+        output_module_names: List[str] = []
     ) -> Response:
         """
         Method to make a POST request to the PLUGIN_EXECUTION_API_PATH endpoint.
@@ -344,8 +345,8 @@ class OpenpluginService(BaseModel):
         Response
             a Response object representing the result of the POST request.
         """
-            
-        openplugin_manifest_json = httpx.get(openplugin_manifest_url).json()
+        if openplugin_manifest_json is None: 
+            openplugin_manifest_json = httpx.get(openplugin_manifest_url).json()
         auth_dict, is_query_param = header.get_auth_json(
             openplugin_manifest_json.get("auth")
         )
@@ -355,21 +356,34 @@ class OpenpluginService(BaseModel):
         else:
             header_dict = auth_dict
             query_param_dict = {}
-        payload = json.dumps(
-            {
-                "prompt": prompt,
-                "conversation": conversation,
-                "openplugin_manifest_url": openplugin_manifest_url,
-                "header": header_dict,
-                "config": config.dict(exclude_none=True),
-                "auth_query_param": query_param_dict,
-                "approach": approach.dict(by_alias=True),
-                "output_module_names": output_module_names,
-            }
-        )
-        result = self.client.post(
-            PLUGIN_EXECUTION_API_PATH, data=payload, timeout=30
-        )
+        
+        payload ={
+            "input": input,
+            "conversation": conversation,
+            "openplugin_manifest_url": openplugin_manifest_url,
+            "openplugin_manifest_obj": openplugin_manifest_json,
+            "header": header_dict,
+            "config": config.dict(exclude_none=True),
+            "auth_query_param": query_param_dict,
+            "approach": approach.dict(by_alias=True),
+            "output_module_names": output_module_names,
+        }
+        obj={
+            "input_metadata": json.dumps(payload)
+        }
+        if local_file_path is not None:
+            with open(local_file_path, 'rb') as f:
+                file = f.read()
+            files = [
+                ('file', ('sample_prompt.txt', file, 'text/plain'))
+            ]
+            result = self.client.post(
+                PLUGIN_EXECUTION_API_PATH, data=obj, timeout=30, files=files
+            )
+        else:
+            result = self.client.post(
+                PLUGIN_EXECUTION_API_PATH, data=obj, timeout=30
+            )
         if result.status_code != 200:
             raise Exception(
                 f"Failed to run openplugin service. Status code: {result.status_code}, Reason: {result.text}"
@@ -389,7 +403,9 @@ class OpenpluginService(BaseModel):
     def select_a_plugin(
         self,
         openplugin_manifest_urls: List[str],
-        prompt: str,
+        input: str,
+        input_type:str,
+        mime_type: Optional[str] = None,
         conversation: List[str] = [],
         pipeline_name: str = "oai functions",
         config: Config = Config(),
@@ -428,7 +444,7 @@ class OpenpluginService(BaseModel):
         llm_dict["model_name"]=llm_dict.pop("model")
         payload = json.dumps(
             {
-                "messages": [{"content": prompt, "message_type": "HumanMessage"}],
+                "messages": [{"content": input, "message_type": "HumanMessage"}],
                 "pipeline_name": pipeline_name,
                 "openplugin_manifest_urls": openplugin_manifest_urls,
                 "config": config.dict(exclude_none=True),
